@@ -64,7 +64,44 @@ sub Run {
 	const qrCodeSuccessCallback = (decodedText, decodedResult) => {
 		html5QrCode.stop().then((ignore) => {});
 		alert("Detected Serial Number: "+decodedText);
-		window.location.href = Core.Config.Get('CGIHandle')+"?Action=CustomerAssetScan;Subaction=AddAsset;SerialNumber="+decodedText;
+        async function attachBody() {
+        let obj;
+
+        const res = await    
+        fetch(Core.Config.Get('CGIHandle')+"?Action=CustomerAssetScan;Subaction=AddAsset;SerialNumber="+decodedText, 
+        {
+            method: "POST",
+            headers: {
+                "Content-type": "application/json; charset=UTF-8"
+            }
+        })
+
+        obj = await res.json();
+        //obj.Status will retun OK (with data) / 0 (empty not found) / ErrorCode
+        //obj.ConfigItem will return array
+        //console.log(obj.ConfigItem);
+
+        if (obj.Status == 'OK') 
+        {
+            const text = obj.ConfigItem;
+            //append back message to qr reader to show message result
+	        document.getElementById('qr-reader').innerHTML = obj.Status;
+            CKEDITOR.instances['RichText'].insertHtml(text.join('<br/><br/>'));
+        } 
+        else if (obj.Status == '0')
+        {
+            document.getElementById('qr-reader').innerHTML = decodedText+" Not Found";
+        }
+        else
+        {
+            document.getElementById('qr-reader').innerHTML = "Error. Check Console Log";
+            console.log(obj);
+        }
+        
+    }
+
+    attachBody();
+
 	};
 	
 	const config = { fps: 10, qrbox: { width: 200, height: 200 } };
@@ -72,13 +109,6 @@ sub Run {
 	html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);				
 	}
 	
-	//grab parameter from url after redirect from CustomerAssetScan
-	const queryString = window.location.search;
-	const urlParams = new URLSearchParams(queryString);
-	const message = urlParams.get('Message');
-	
-	//append back message to qr reader to show message result
-	document.getElementById('qr-reader').innerHTML = message;
 	</script>
 	~;	
 	

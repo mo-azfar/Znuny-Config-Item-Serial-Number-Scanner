@@ -32,70 +32,75 @@ sub Run {
     my $LayoutObject = $Kernel::OM->Get('Kernel::Output::HTML::Layout');
     my $ConfigObject = $Kernel::OM->Get('Kernel::Config');
     my $ParamObject  = $Kernel::OM->Get('Kernel::System::Web::Request');
-		   
+
+    my $Error = {
+        Status => 'Error',
+        ErrorMessage => 0,
+    };
+
+    my $OK = {
+        Status => 'OK',
+        ConfigItem    => 0,
+    };
+
 	# check needed CustomerID
     if ( !$Self->{UserCustomerID} ) {
-        my $Output = $LayoutObject->CustomerHeader(
-            Title => Translatable('Error'),
+        $Error->{ErrorMessage} = "Need CustomerID!";
+        
+        my $JSON = $LayoutObject->JSONEncode(
+            Data        => $Error,
+            NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
         );
-        $Output .= $LayoutObject->CustomerError(
-            Message => Translatable('Need CustomerID!'),
-        );
-        $Output .= $LayoutObject->CustomerFooter();
-        return $Output;
+        
+        return $LayoutObject->Attachment(
+                Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+                ContentType => 'application/json',
+                Charset     => 'utf-8',         # optional
+                Content     => $JSON,
+                NoCache     => 1,               # optional
+        );	
     }
-	
-	my $Title = $Self->{Subaction};
-	
-	my $Output = $LayoutObject->CustomerHeader(
-        Title   => $Title,
-    );
 	
 	#since we didnt need template file to show html, throw an error instead of sending parameter to template file
 	if ( !$Self->{Subaction} )
 	{
-		#$LayoutObject->Block(
-		#	Name => 'SubmitFooter',
-		#);
-		#
-		## start html page
-        #$Output .= $LayoutObject->Output(
-        #    TemplateFile => 'CustomerAssetScan',
-        #    Data         => \%Param,
-        #);
-		#
-        #$Output .= $LayoutObject->CustomerFooter();
-        #return $Output;
-		
-		my $Output = $LayoutObject->CustomerHeader(
-            Title => Translatable('Warning'),
+        $Error->{ErrorMessage} = "Opps.Cant Access This Directly!";
+
+        my $JSON = $LayoutObject->JSONEncode(
+            Data        => $Error,
+            NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
         );
-		
-		$Output .= $LayoutObject->Warning(
-			Message => Translatable('Opps.Cant Access This Directly!.'),
-			Comment => Translatable('!'),
-		);
-        
-		$Output .= $LayoutObject->CustomerFooter();
-        
-		return $Output;
+
+        return $LayoutObject->Attachment(
+                Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+                ContentType => 'application/json',
+                Charset     => 'utf-8',         # optional
+                Content     => $JSON,
+                NoCache     => 1,               # optional
+        );	
 		
 	}
 	
 	elsif ( $Self->{Subaction} eq "AddAsset" )
-	{	
-		my $SerialNumber = $ParamObject->GetParam( Param => 'SerialNumber' ) || '';
+	{	  
+        my $SerialNumber = $ParamObject->GetParam( Param => 'SerialNumber' ) || '';
 		
 		if ( !$SerialNumber )
 		{
-			$Output .= $LayoutObject->Warning(
-				Message => Translatable('Opps.You Need To Scan The Asset Serial Number!.'),
-				Comment => Translatable('!'),
-			);
-			
-			$Output .= $LayoutObject->CustomerFooter();
-			
-			return $Output;
+			$Error->{ErrorMessage} = "Need SerialNumber!";
+
+            my $JSON = $LayoutObject->JSONEncode(
+                Data        => $Error,
+                NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
+            );
+            
+            return $LayoutObject->Attachment(
+                Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+                ContentType => 'application/json',
+                Charset     => 'utf-8',         # optional
+                Content     => $JSON,
+                NoCache     => 1,               # optional
+            );	
 		}
 		
 		my $ConfigItemObject = $Kernel::OM->Get('Kernel::System::ITSMConfigItem');
@@ -114,9 +119,20 @@ sub Run {
 		
 		if (!@{$ConfigItemIDs})
 		{
-			my $MessageEncoded = $LayoutObject->LinkEncode("*SerialNumber#$SerialNumber not found in the system");
-			
-			return $LayoutObject->Redirect( OP => "Action=CustomerTicketMessage&Message=$MessageEncoded" );
+			$OK->{Status} = 0;
+            
+            my $JSON = $LayoutObject->JSONEncode(
+                Data        => $OK,
+                NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
+            );
+            
+            return $LayoutObject->Attachment(
+                Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+                ContentType => 'application/json',
+                Charset     => 'utf-8',         # optional
+                Content     => $JSON,
+                NoCache     => 1,               # optional
+            );	
 		}
 		
 		my @Data;
@@ -137,24 +153,44 @@ sub Run {
 			my $Vendor = $Tree->{Vendor}->[1]->{Content};
 			
 			my $Text = "ConfigItem#: $Number<br/>Name: $Name<br/>Class: $Class<br/>S/N: $MatchedSerialNumber<br/>Vendor: $Vendor";
-			push @Data, $Text;	
-		}
+
+            push @Data, $Text;	
+
+		}  
 		
-		#just in case serialnumber connected to multiple asset since no unique identifier in CMDB.
-		my $Body = join('<br/><br/>', @Data);
-		my $BodyEncoded = $LayoutObject->LinkEncode($Body);
-		my $MessageEncoded = $LayoutObject->LinkEncode("*SerialNumber#$SerialNumber has been added to the ticket body");
-		
-		return $LayoutObject->Redirect( OP => "Action=CustomerTicketMessage;Body=$BodyEncoded&Message=$MessageEncoded" );
+        $OK->{ConfigItem} = \@Data;
+
+        my $JSON = $LayoutObject->JSONEncode(
+                Data        => $OK,
+                NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
+            );
+            
+            return $LayoutObject->Attachment(
+                Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+                ContentType => 'application/json',
+                Charset     => 'utf-8',         # optional
+                Content     => $JSON,
+                NoCache     => 1,               # optional
+            );	
+
 	}
 	
 	else 
 	{
-		
-        return $LayoutObject->CustomerErrorScreen(
-            Message => Translatable('No Subaction!'),
-            Comment => Translatable('Please contact the administrator.'),
+		$Error->{ErrorMessage} = "Wrong Subaction!";
+
+        my $JSON = $LayoutObject->JSONEncode(
+            Data        => $Error,
+            NoQuotes    => 1, # optional: no double quotes at the start and the end of JSON string
         );
+
+        return $LayoutObject->Attachment(
+            Type        => 'inline',        # optional, default: attachment, possible: inline|attachment
+            ContentType => 'application/json',
+            Charset     => 'utf-8',         # optional
+            Content     => $JSON,
+            NoCache     => 1,               # optional
+        );	
 		
     }
 	  
